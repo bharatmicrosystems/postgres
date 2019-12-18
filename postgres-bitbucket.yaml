@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-bitbucket-pv-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/kubevolumes/postgres_data/bitbucket"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-bitbucket-statefulset
+  labels:
+    app: postgres-bitbucket
+spec:
+  serviceName: postgres-bitbucket-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-bitbucket
+  template:
+    metadata:
+      labels:
+        app: postgres-bitbucket
+    spec:
+      containers:
+      - name: postgres-bitbucket
+        image: postgres
+        imagePullPolicy: IfNotPresent
+        ports: 
+        - containerPort: 5432
+        volumeMounts:
+        - mountPath: "/var/lib/postgresql/data"
+          name: postgres-bitbucket-pv-claim
+      initContainers:
+      - name: volume-mount-data-log
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c", "chown -R 1000:1000 /var/lib/postgresql/data"]
+        volumeMounts:
+        - mountPath: "/var/lib/postgresql/data"
+          name: postgres-bitbucket-pv-claim
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-bitbucket-pv-claim
+    spec:
+      storageClassName: manual
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi 
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-bitbucket-service
+  labels:
+    app: postgres-bitbucket-svc
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+  selector:
+    app: postgres-bitbucket

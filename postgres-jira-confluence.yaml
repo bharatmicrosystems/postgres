@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-jiraconfluence-pv-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/kubevolumes/postgres_data/jiraconfluence"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-jiraconfluence-statefulset
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres-jiraconfluence-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-jiraconfluence
+  template:
+    metadata:
+      labels:
+        app: postgres-jiraconfluence
+    spec:
+      containers:
+      - name: postgres-jiraconfluence
+        image: postgres
+        imagePullPolicy: IfNotPresent
+        ports: 
+        - containerPort: 5432
+        volumeMounts:
+        - mountPath: "/var/lib/postgresql/data"
+          name: postgres-jiraconfluence-pv-claim
+      initContainers:
+      - name: volume-mount-data-log
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c", "chown -R 1000:1000 /var/lib/postgresql/data"]
+        volumeMounts:
+        - mountPath: "/var/lib/postgresql/data"
+          name: postgres-jiraconfluence-pv-claim
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-jiraconfluence-pv-claim
+    spec:
+      storageClassName: manual
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi 
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-jiraconfluence-service
+  labels:
+    app: postgres-jiraconfluence-svc
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+  selector:
+    app: postgres-jiraconfluence
